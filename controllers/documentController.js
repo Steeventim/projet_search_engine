@@ -1,5 +1,8 @@
 // controllers/documentController.js
+const path = require('path');
+const fs = require('fs'); 
 const elasticsearchService = require('../services/elasticsearchService');
+
 
 // Récupérer tous les documents
 const getAllDocuments = async (req, res) => {
@@ -117,6 +120,31 @@ const searchDocumentsWithPagination = async (req, res) => {
   }
 };
 
+const getFile = async (req, res) => {
+  try {
+    const filename = req.params.filename;
+
+    // Chemin des fichiers
+    const LOCAL_PDF_DIRECTORY = '/home/tims/Documents/Others';
+    const filePath = path.join(LOCAL_PDF_DIRECTORY, filename);
+
+    // Vérification si le fichier existe
+    if (!fs.existsSync(filePath)) {
+      console.log('Fichier non trouvé:', filePath);
+      return res.status(404).send('Fichier non trouvé');
+    }
+
+    console.log('Envoi du fichier:', filePath);
+
+    // Envoi du fichier PDF
+    res.sendFile(filePath);
+  } catch (error) {
+    console.error(`Erreur lors de l'accès au fichier: ${error.message}`);
+    res.status(500).send('Erreur lors de l\'accès au fichier.');
+  }
+};
+
+
 module.exports = {
   getAllDocuments,
   getDocumentById,
@@ -126,4 +154,5 @@ module.exports = {
   searchDocumentsWithHighlight,
   searchDocumentsSortedByDate,
   searchDocumentsWithPagination,
+  getFile
 };

@@ -27,4 +27,7 @@ router.post('/search/sort/date', documentController.searchDocumentsSortedByDate)
 // Route pour effectuer une recherche avec pagination
 router.post('/search/paginate', documentController.searchDocumentsWithPagination);
 
+// Nouvelle route pour servir les fichiers PDF
+router.get('/files/:filename', documentController.getFile);
+
 module.exports = router;
