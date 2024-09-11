@@ -30,4 +30,7 @@ router.post('/search/paginate', documentController.searchDocumentsWithPagination
 // Nouvelle route pour servir les fichiers PDF
 router.get('/files/:filename', documentController.getFile);
 
+// Nouvelle route pour servir le fichier PDF avec le mot recherche 
+router.get('/files/fixedPages/:filename', documentController.viewDocument);
+
 module.exports = router;

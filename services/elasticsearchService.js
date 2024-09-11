@@ -1,8 +1,10 @@
 // services/elasticsearchService.js
 const { indexes } = require('../config/config');
 const { Client } = require('@elastic/elasticsearch');
-const LOCAL_PDF_DIRECTORY = '/home/tims/Documents/Others';
-
+const LOCAL_PDF_DIRECTORY = '/home/tims/Documents/Others'; // Répertoire de base
+const { PDFDocument } = require('pdf-lib');
+const fs = require('fs');
+const pdfParse = require('pdf-parse');
 
 
 const client = new Client({ node: 'http://localhost:9200' });
@@ -44,15 +46,16 @@ const getAllDocuments = async () => {
 // Fonction pour récupérer un document par ID
 const getDocumentById = async (id) => {
   try {
-    const indexCheck = await indexExists(indexes.documentsIndex);
-    if (!indexCheck) {
-      throw new Error(`Index ${indexes.documentsIndex} n'existe pas.`);
-    }
     const { body } = await client.get({
       index: indexes.documentsIndex,
       id: id
     });
-    return body._source;
+
+    if (body.found) {
+      return body._source;
+    } else {
+      throw new Error(`Document avec l'ID ${id} non trouvé.`);
+    }
   } catch (error) {
     console.error(`Erreur lors de la récupération du document: ${error.message}`);
     throw new Error('Erreur lors de la récupération du document.');
@@ -97,17 +100,30 @@ const searchDocuments = async (query) => {
     if (!indexCheck) {
       throw new Error(`Index ${indexes.documentsIndex} n'existe pas.`);
     }
+
     const { body } = await client.search({
-      index: indexes.documentsIndex,
-      body: {
-        query: {
-          multi_match: {
-            query: query,
-            fields: ["content", "filename", "meta.date"] // Recherche sur plusieurs champs
-          }
+    index:indexes.documentsIndex,
+    body: {
+      query: {
+        bool: {
+          should: [
+            { match: { content: query } }, // Recherche dans le contenu
+            { match: { filename: query } } // Recherche dans le nom du document
+          ]
+        }
+      },
+      highlight: {
+        fields: {
+          content: {} 
         }
       }
-    });
+    },
+  });
+
+    if (!body.hits || !body.hits.hits) {
+      return [];  // Assurez-vous de retourner un tableau vide si aucune donnée n'est trouvée
+    }
+
     return body.hits.hits;
   } catch (error) {
     console.error(`Erreur lors de la recherche: ${error.message}`);
@@ -115,6 +131,10 @@ const searchDocuments = async (query) => {
   }
 };
 
+
+
+
+    
 // Fonction de recherche avec surlignage (highlight)
 const searchDocumentsWithHighlight = async (query, fields) => {
   try {
@@ -228,6 +248,125 @@ const getFile = async (filename) => {
   }
 };
 
+const findPagesWithSearchTerm = async (pdfBuffer, searchTerm) => {
+  try {
+    // Séparer les mots du terme de recherche
+    const searchWords = searchTerm.trim().toLowerCase().split(/\s+/);
+
+    // Extraire le texte du PDF
+    const parsedData = await pdfParse(pdfBuffer);
+    const extractedText = parsedData.text;
+    // console.log('Texte extrait:', extractedText);
+
+    // Diviser le texte en pages
+    const pages = extractedText.split('\f'); // Utiliser le caractère de saut de page form feed
+
+    // Parcourir chaque page
+    for (let i = 0; i < pages.length; i++) {
+      const pageText = pages[i].toLowerCase();
+
+      // Vérifiez si chaque mot du terme de recherche est présent dans le texte de la page
+      const allWordsPresent = searchWords.every(word => pageText.includes(word));
+      
+      if (allWordsPresent) {
+        console.log(`Mot recherché trouvé à la page : ${i + 1}`);
+        return i; // Retourner l'index de la page contenant tous les mots
+      }
+    }
+    return null; // Retourner null si aucun mot n'est trouvé
+  } catch (error) {
+    console.error(`Erreur lors de l'extraction du texte du PDF: ${error.message}`);
+    throw new Error('Erreur lors de l\'extraction du texte du PDF.');
+  }
+};
+
+
+const getDocumentWithFixedPages = async (filePath, searchTerm) => {
+  try {
+    const pdfBuffer = fs.readFileSync(filePath);
+    const pageIndex = await findPagesWithSearchTerm(pdfBuffer, searchTerm);
+
+    if (pageIndex === null) {
+      throw new Error('Terme recherché non trouvé dans le document');
+    }
+
+    const pdfDocLib = await PDFDocument.load(pdfBuffer);
+    const newPdfDoc = await PDFDocument.create();
+    const totalPages = pdfDocLib.getPageCount();
+
+    // Copier la première page
+    const firstPage = await newPdfDoc.copyPages(pdfDocLib, [0]);
+    newPdfDoc.addPage(firstPage[0]);
+
+    // Copier la page contenant le terme recherché
+    if (pageIndex >= 0 && pageIndex < totalPages) {
+      const searchPage = await newPdfDoc.copyPages(pdfDocLib, [pageIndex]);
+      newPdfDoc.addPage(searchPage[0]);
+    } else {
+      console.log('Index de la page recherchée est hors de portée.');
+    }
+
+    // Copier la dernière page
+    if (totalPages > 1) {
+      const lastPage = await newPdfDoc.copyPages(pdfDocLib, [totalPages - 1]);
+      newPdfDoc.addPage(lastPage[0]);
+    }
+
+    const pdfBytes = await newPdfDoc.save();
+    return pdfBytes;
+  } catch (error) {
+    console.error(`Erreur lors de la génération du PDF avec les pages fixes: ${error.message}`);
+    throw new Error('Erreur lors de la génération du PDF avec les pages fixes.');
+  }
+};
+
+// const getDocumentWithFixedPages = async (filePath, searchTerm) => {
+//   const pdfBuffer = fs.readFileSync(filePath);
+//   const pageIndex = await findPagesWithSearchTerm(pdfBuffer, searchTerm);
+
+//   if (pageIndex === null) {
+//     throw new Error(`Terme recherché "${searchTerm}" non trouvé dans le document`);
+//   }
+
+//   const pdfDocLib = await PDFDocument.load(pdfBuffer);
+//   const newPdfDoc = await PDFDocument.create();
+//   const totalPages = pdfDocLib.getPageCount();
+
+//   console.log(`Total de pages: ${totalPages}`);
+//   console.log(`Page contenant le terme recherché : ${pageIndex}`);
+
+//   // Fonction pour copier une page avec une vérification supplémentaire
+//   const safeCopyPage = async (pdfDocLib, newPdfDoc, pageIndex) => {
+//     if (pageIndex >= 0 && pageIndex < totalPages) {
+//       const pages = await newPdfDoc.copyPages(pdfDocLib, [pageIndex]);
+//       if (pages && pages[0]) {
+//         newPdfDoc.addPage(pages[0]);
+//       } else {
+//         console.warn(`Page ${pageIndex} introuvable ou illisible.`);
+//       }
+//     } else {
+//       console.warn(`Index de page hors de portée : ${pageIndex}`);
+//     }
+//   };
+
+//   // Copier la première page
+//   await safeCopyPage(pdfDocLib, newPdfDoc, 0);
+
+//   // Copier la page contenant le terme recherché
+//   if (pageIndex !== 0 && pageIndex !== totalPages - 1) {
+//     await safeCopyPage(pdfDocLib, newPdfDoc, pageIndex);
+//   }
+
+//   // Copier la dernière page
+//   await safeCopyPage(pdfDocLib, newPdfDoc, totalPages - 1);
+
+//   const pdfBytes = await newPdfDoc.save(); 
+//   return pdfBytes;
+// };
+
+
+
+
 
 
 
@@ -241,5 +380,7 @@ module.exports = {
   searchDocumentsSortedByDate,
   searchDocumentsWithPagination,
   searchDocumentsByDateRange,
-  getFile
+  getFile,
+  findPagesWithSearchTerm,
+  getDocumentWithFixedPages
 };
