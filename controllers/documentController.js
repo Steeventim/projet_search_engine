@@ -174,7 +174,7 @@ const getDocumentWithFixedPages = async (req, res) => {
 const viewDocument = async (req, res) => {
   try {
     const filename = req.params.filename;
-    const searchTerm = req.query.searchTerm ||req.body.query || req.query.query || '';
+    const searchTerm = req.query.searchTerm || req.body.query || req.query.query || '';
 
     console.log('Filename:', filename);
     console.log('Search Term:', searchTerm); // Vérifiez ici si le terme de recherche est présent
@@ -186,6 +186,8 @@ const viewDocument = async (req, res) => {
       return res.status(404).send('Fichier non trouvé');
     }
 
+    console.log('Chemin du fichier:', filePath);
+
     const pdfBytes = await elasticsearchService.getDocumentWithFixedPages(filePath, searchTerm);
 
     res.setHeader('Content-Type', 'application/pdf');
@@ -195,6 +197,9 @@ const viewDocument = async (req, res) => {
     res.status(500).send('Erreur lors de l\'accès au fichier.');
   }
 };
+
+
+
 
 
 module.exports = {

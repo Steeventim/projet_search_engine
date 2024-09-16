@@ -248,32 +248,49 @@ const getFile = async (filename) => {
   }
 };
 
-const findPagesWithSearchTerm = async (pdfBuffer, searchTerm) => {
+const findPageWithSearchTerm = async (pdfBuffer, searchTerm) => {
   try {
     // Séparer les mots du terme de recherche
     const searchWords = searchTerm.trim().toLowerCase().split(/\s+/);
 
     // Extraire le texte du PDF
     const parsedData = await pdfParse(pdfBuffer);
+
+    // Vérifier que le texte extrait existe
+    if (!parsedData.text) {
+      console.error('Aucun texte extrait du PDF.');
+      throw new Error('Le texte extrait est vide.');
+    }
+
     const extractedText = parsedData.text;
-    // console.log('Texte extrait:', extractedText);
+    console.log('Texte extrait :', extractedText);  // Débogage du texte extrait
 
-    // Diviser le texte en pages
-    const pages = extractedText.split('\f'); // Utiliser le caractère de saut de page form feed
+    // Diviser le texte en pages en utilisant \f ou \n{2,} pour les sauts de pages
+    const pages = extractedText.split(/\f|\n{2,}/);
 
-    // Parcourir chaque page
-    for (let i = 0; i < pages.length; i++) {
+    // Vérifier si des pages ont été extraites
+    if (pages.length === 1) {
+      console.error('Aucune page trouvée après la segmentation.');
+      throw new Error('Impossible de segmenter le texte en pages.');
+    }
+
+    console.log(`Nombre total de pages extraites : ${pages.length}`);
+
+    // Parcourir chaque page pour trouver le terme
+    for (let i = 1; i < pages.length; i++) {
       const pageText = pages[i].toLowerCase();
+      console.log(`Contenu de la page ${i + 1}: ${pageText}`);  // Débogage du contenu de la page
 
-      // Vérifiez si chaque mot du terme de recherche est présent dans le texte de la page
+      // Vérifier si tous les mots du terme de recherche sont présents dans la page
       const allWordsPresent = searchWords.every(word => pageText.includes(word));
-      
+
       if (allWordsPresent) {
         console.log(`Mot recherché trouvé à la page : ${i + 1}`);
-        return i; // Retourner l'index de la page contenant tous les mots
+        return i;  // Retourner l'index de la page contenant tous les mots
       }
     }
-    return null; // Retourner null si aucun mot n'est trouvé
+
+    return null;  // Retourner null si aucun mot n'est trouvé
   } catch (error) {
     console.error(`Erreur lors de l'extraction du texte du PDF: ${error.message}`);
     throw new Error('Erreur lors de l\'extraction du texte du PDF.');
@@ -281,44 +298,27 @@ const findPagesWithSearchTerm = async (pdfBuffer, searchTerm) => {
 };
 
 
-const getDocumentWithFixedPages = async (filePath, searchTerm) => {
-  try {
-    const pdfBuffer = fs.readFileSync(filePath);
-    const pageIndex = await findPagesWithSearchTerm(pdfBuffer, searchTerm);
+const getDocumentWithFixedPages = async (filePath, searchTerm) => { 
+  const pdfBuffer = fs.readFileSync(filePath);
+  const pageIndex = await findPageWithSearchTerm(pdfBuffer, searchTerm);
 
-    if (pageIndex === null) {
-      throw new Error('Terme recherché non trouvé dans le document');
-    }
-
-    const pdfDocLib = await PDFDocument.load(pdfBuffer);
-    const newPdfDoc = await PDFDocument.create();
-    const totalPages = pdfDocLib.getPageCount();
-
-    // Copier la première page
-    const firstPage = await newPdfDoc.copyPages(pdfDocLib, [0]);
-    newPdfDoc.addPage(firstPage[0]);
-
-    // Copier la page contenant le terme recherché
-    if (pageIndex >= 0 && pageIndex < totalPages) {
-      const searchPage = await newPdfDoc.copyPages(pdfDocLib, [pageIndex]);
-      newPdfDoc.addPage(searchPage[0]);
-    } else {
-      console.log('Index de la page recherchée est hors de portée.');
-    }
-
-    // Copier la dernière page
-    if (totalPages > 1) {
-      const lastPage = await newPdfDoc.copyPages(pdfDocLib, [totalPages - 1]);
-      newPdfDoc.addPage(lastPage[0]);
-    }
-
-    const pdfBytes = await newPdfDoc.save();
-    return pdfBytes;
-  } catch (error) {
-    console.error(`Erreur lors de la génération du PDF avec les pages fixes: ${error.message}`);
-    throw new Error('Erreur lors de la génération du PDF avec les pages fixes.');
+  if (pageIndex === null) {
+    throw new Error('Terme recherché non trouvé dans le document');
   }
+
+  const pdfDocLib = await PDFDocument.load(pdfBuffer);
+  const newPdfDoc = await PDFDocument.create();
+
+  const pagesToCopy = [0, pageIndex - 1, pdfDocLib.getPageCount() - 1].filter(index => index < pdfDocLib.getPageCount());
+  const pages = await newPdfDoc.copyPages(pdfDocLib, pagesToCopy);
+  pages.forEach(page => newPdfDoc.addPage(page));
+
+  const pdfBytes = await newPdfDoc.save();
+  return pdfBytes;
+
 };
+
+
 
 // const getDocumentWithFixedPages = async (filePath, searchTerm) => {
 //   const pdfBuffer = fs.readFileSync(filePath);
@@ -381,6 +381,6 @@ module.exports = {
   searchDocumentsWithPagination,
   searchDocumentsByDateRange,
   getFile,
-  findPagesWithSearchTerm,
+  // findPagesWithSearchTerm,
   getDocumentWithFixedPages
 };
