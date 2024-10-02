@@ -1,13 +1,12 @@
 // services/elasticsearchService.js
-const { indexes } = require('../config/config');
-const { Client } = require('@elastic/elasticsearch');
-const LOCAL_PDF_DIRECTORY = '/home/tims/Documents/Others'; // Répertoire de base
-const { PDFDocument } = require('pdf-lib');
-const fs = require('fs');
-const pdfParse = require('pdf-parse');
+const { indexes } = require("../config/config");
+const { Client } = require("@elastic/elasticsearch");
+const LOCAL_PDF_DIRECTORY = "/home/tims/Documents/Others"; // Répertoire de base
+const { PDFDocument } = require("pdf-lib");
+const fs = require("fs");
+const pdfParse = require("pdf-parse");
 
-
-const client = new Client({ node: 'http://localhost:9200' });
+const client = new Client({ node: "http://localhost:9200" });
 
 // Fonction pour vérifier l'existence de l'index
 const indexExists = async (index) => {
@@ -15,7 +14,9 @@ const indexExists = async (index) => {
     const { body } = await client.indices.exists({ index });
     return body;
   } catch (error) {
-    console.error(`Erreur lors de la vérification de l'existence de l'index: ${error.message}`);
+    console.error(
+      `Erreur lors de la vérification de l'existence de l'index: ${error.message}`
+    );
     return false;
   }
 };
@@ -31,14 +32,16 @@ const getAllDocuments = async () => {
       index: indexes.documentsIndex,
       body: {
         query: {
-          match_all: {} // Recherche tous les documents
-        }
+          match_all: {}, // Recherche tous les documents
+        },
       },
-      size: 10000 // Limite des documents récupérés
+      size: 10000, // Limite des documents récupérés
     });
     return body.hits.hits;
   } catch (error) {
-    console.error(`Erreur lors de la récupération des documents: ${error.message}`);
+    console.error(
+      `Erreur lors de la récupération des documents: ${error.message}`
+    );
     throw new Error(`Erreur lors de la récupération des documents.`);
   }
 };
@@ -48,7 +51,7 @@ const getDocumentById = async (id) => {
   try {
     const { body } = await client.get({
       index: indexes.documentsIndex,
-      id: id
+      id: id,
     });
 
     if (body.found) {
@@ -57,8 +60,10 @@ const getDocumentById = async (id) => {
       throw new Error(`Document avec l'ID ${id} non trouvé.`);
     }
   } catch (error) {
-    console.error(`Erreur lors de la récupération du document: ${error.message}`);
-    throw new Error('Erreur lors de la récupération du document.');
+    console.error(
+      `Erreur lors de la récupération du document: ${error.message}`
+    );
+    throw new Error("Erreur lors de la récupération du document.");
   }
 };
 
@@ -69,13 +74,15 @@ const updateDocument = async (id, document) => {
       index: indexes.documentsIndex,
       id: id,
       body: {
-        doc: document // Mise à jour partielle
-      }
+        doc: document, // Mise à jour partielle
+      },
     });
     return body;
   } catch (error) {
-    console.error(`Erreur lors de la mise à jour du document: ${error.message}`);
-    throw new Error('Erreur lors de la mise à jour du document.');
+    console.error(
+      `Erreur lors de la mise à jour du document: ${error.message}`
+    );
+    throw new Error("Erreur lors de la mise à jour du document.");
   }
 };
 
@@ -84,12 +91,14 @@ const deleteDocument = async (id) => {
   try {
     const { body } = await client.delete({
       index: indexes.documentsIndex,
-      id: id
+      id: id,
     });
     return body;
   } catch (error) {
-    console.error(`Erreur lors de la suppression du document: ${error.message}`);
-    throw new Error('Erreur lors de la suppression du document.');
+    console.error(
+      `Erreur lors de la suppression du document: ${error.message}`
+    );
+    throw new Error("Erreur lors de la suppression du document.");
   }
 };
 
@@ -102,39 +111,35 @@ const searchDocuments = async (query) => {
     }
 
     const { body } = await client.search({
-    index:indexes.documentsIndex,
-    body: {
-      query: {
-        bool: {
-          should: [
-            { match: { content: query } }, // Recherche dans le contenu
-            { match: { filename: query } } // Recherche dans le nom du document
-          ]
-        }
+      index: indexes.documentsIndex,
+      body: {
+        query: {
+          bool: {
+            should: [
+              { match: { content: query } }, // Recherche dans le contenu
+              { match: { filename: query } }, // Recherche dans le nom du document
+            ],
+          },
+        },
+        highlight: {
+          fields: {
+            content: {},
+          },
+        },
       },
-      highlight: {
-        fields: {
-          content: {} 
-        }
-      }
-    },
-  });
+    });
 
     if (!body.hits || !body.hits.hits) {
-      return [];  // Assurez-vous de retourner un tableau vide si aucune donnée n'est trouvée
+      return []; // Assurez-vous de retourner un tableau vide si aucune donnée n'est trouvée
     }
 
     return body.hits.hits;
   } catch (error) {
     console.error(`Erreur lors de la recherche: ${error.message}`);
-    throw new Error('Erreur lors de la recherche de documents.');
+    throw new Error("Erreur lors de la recherche de documents.");
   }
 };
 
-
-
-
-    
 // Fonction de recherche avec surlignage (highlight)
 const searchDocumentsWithHighlight = async (query, fields) => {
   try {
@@ -146,41 +151,45 @@ const searchDocumentsWithHighlight = async (query, fields) => {
       index: indexes.documentsIndex,
       body: {
         query: {
-          match: query
+          match: query,
         },
         highlight: {
           fields: fields.reduce((acc, field) => {
             acc[field] = {}; // Surligner les champs spécifiés
             return acc;
-          }, {})
-        }
-      }
+          }, {}),
+        },
+      },
     });
     return body.hits.hits;
   } catch (error) {
-    console.error(`Erreur lors de la recherche avec surlignage: ${error.message}`);
-    throw new Error('Erreur lors de la recherche avec surlignage.');
+    console.error(
+      `Erreur lors de la recherche avec surlignage: ${error.message}`
+    );
+    throw new Error("Erreur lors de la recherche avec surlignage.");
   }
 };
 
 // Fonction de recherche triée par date
-const searchDocumentsSortedByDate = async (query, sortOrder = 'desc') => {
+const searchDocumentsSortedByDate = async (query, sortOrder = "desc") => {
   try {
     const { body } = await client.search({
       index: indexes.documentsIndex,
       body: {
         query: {
-          match: query
+          match: query,
         },
         sort: [
-          { "meta.date": { order: sortOrder } } // Tri basé sur la date
-        ]
-      }
+          { "meta.date": { order: sortOrder } }, // Tri basé sur la date
+        ],
+      },
     });
     return body.hits.hits;
   } catch (error) {
-    console.error(`Erreur lors de la recherche triée par date: ${error.message}`);
-    throw new Error('Erreur lors de la recherche triée par date.');
+    console.error(
+      `Erreur lors de la recherche triée par date: ${error.message}`
+    );
+    throw new Error("Erreur lors de la recherche triée par date.");
   }
 };
 
@@ -191,16 +200,18 @@ const searchDocumentsWithPagination = async (query, page = 1, limit = 10) => {
       index: indexes.documentsIndex,
       body: {
         query: {
-          match: query
+          match: query,
         },
         from: (page - 1) * limit,
-        size: limit
-      }
+        size: limit,
+      },
     });
     return body.hits.hits;
   } catch (error) {
-    console.error(`Erreur lors de la recherche avec pagination: ${error.message}`);
-    throw new Error('Erreur lors de la recherche avec pagination.');
+    console.error(
+      `Erreur lors de la recherche avec pagination: ${error.message}`
+    );
+    throw new Error("Erreur lors de la recherche avec pagination.");
   }
 };
 
@@ -214,16 +225,18 @@ const searchDocumentsByDateRange = async (startDate, endDate) => {
           range: {
             "meta.date": {
               gte: startDate,
-              lte: endDate
-            }
-          }
-        }
-      }
+              lte: endDate,
+            },
+          },
+        },
+      },
     });
     return body.hits.hits;
   } catch (error) {
-    console.error(`Erreur lors de la recherche par plage de dates: ${error.message}`);
-    throw new Error('Erreur lors de la recherche par plage de dates.');
+    console.error(
+      `Erreur lors de la recherche par plage de dates: ${error.message}`
+    );
+    throw new Error("Erreur lors de la recherche par plage de dates.");
   }
 };
 
@@ -236,15 +249,15 @@ const getFile = async (filename) => {
 
     // Vérifier si le fichier existe
     if (!fs.existsSync(filePath)) {
-      console.log('Fichier non trouvé:', filePath);
-      throw new Error('Fichier non trouvé');
+      console.log("Fichier non trouvé:", filePath);
+      throw new Error("Fichier non trouvé");
     }
 
     // Retourner le chemin du fichier pour être utilisé par la route d'envoi de fichier
     return filePath;
   } catch (error) {
     console.error(`Erreur lors de l'accès au fichier local: ${error.message}`);
-    throw new Error('Erreur lors de l’accès au fichier local.');
+    throw new Error("Erreur lors de l’accès au fichier local.");
   }
 };
 
@@ -258,20 +271,20 @@ const findPageWithSearchTerm = async (pdfBuffer, searchTerm) => {
 
     // Vérifier que le texte extrait existe
     if (!parsedData.text) {
-      console.error('Aucun texte extrait du PDF.');
-      throw new Error('Le texte extrait est vide.');
+      console.error("Aucun texte extrait du PDF.");
+      throw new Error("Le texte extrait est vide.");
     }
 
     const extractedText = parsedData.text;
-    console.log('Texte extrait :', extractedText);  // Débogage du texte extrait
+    // console.log("Texte extrait :", extractedText); // Débogage du texte extrait
 
     // Diviser le texte en pages en utilisant \f ou \n{2,} pour les sauts de pages
     const pages = extractedText.split(/\f|\n{2,}/);
 
     // Vérifier si des pages ont été extraites
     if (pages.length === 1) {
-      console.error('Aucune page trouvée après la segmentation.');
-      throw new Error('Impossible de segmenter le texte en pages.');
+      console.error("Aucune page trouvée après la segmentation.");
+      throw new Error("Impossible de segmenter le texte en pages.");
     }
 
     console.log(`Nombre total de pages extraites : ${pages.length}`);
@@ -279,46 +292,48 @@ const findPageWithSearchTerm = async (pdfBuffer, searchTerm) => {
     // Parcourir chaque page pour trouver le terme
     for (let i = 1; i < pages.length; i++) {
       const pageText = pages[i].toLowerCase();
-      console.log(`Contenu de la page ${i + 1}: ${pageText}`);  // Débogage du contenu de la page
+      // console.log(`Contenu de la page ${i + 1}: ${pageText}`); // Débogage du contenu de la page
 
       // Vérifier si tous les mots du terme de recherche sont présents dans la page
-      const allWordsPresent = searchWords.every(word => pageText.includes(word));
+      const allWordsPresent = searchWords.every((word) =>
+        pageText.includes(word)
+      );
 
       if (allWordsPresent) {
         console.log(`Mot recherché trouvé à la page : ${i + 1}`);
-        return i;  // Retourner l'index de la page contenant tous les mots
+        return i; // Retourner l'index de la page contenant tous les mots
       }
     }
 
-    return null;  // Retourner null si aucun mot n'est trouvé
+    return null; // Retourner null si aucun mot n'est trouvé
   } catch (error) {
-    console.error(`Erreur lors de l'extraction du texte du PDF: ${error.message}`);
-    throw new Error('Erreur lors de l\'extraction du texte du PDF.');
+    console.error(
+      `Erreur lors de l'extraction du texte du PDF: ${error.message}`
+    );
+    throw new Error("Erreur lors de l'extraction du texte du PDF.");
   }
 };
 
-
-const getDocumentWithFixedPages = async (filePath, searchTerm) => { 
+const getDocumentWithFixedPages = async (filePath, searchTerm) => {
   const pdfBuffer = fs.readFileSync(filePath);
   const pageIndex = await findPageWithSearchTerm(pdfBuffer, searchTerm);
 
   if (pageIndex === null) {
-    throw new Error('Terme recherché non trouvé dans le document');
+    throw new Error("Terme recherché non trouvé dans le document");
   }
 
   const pdfDocLib = await PDFDocument.load(pdfBuffer);
   const newPdfDoc = await PDFDocument.create();
 
-  const pagesToCopy = [0, pageIndex - 1, pdfDocLib.getPageCount() - 1].filter(index => index < pdfDocLib.getPageCount());
+  const pagesToCopy = [0, pageIndex - 1, pdfDocLib.getPageCount() - 1].filter(
+    (index) => index < pdfDocLib.getPageCount()
+  );
   const pages = await newPdfDoc.copyPages(pdfDocLib, pagesToCopy);
-  pages.forEach(page => newPdfDoc.addPage(page));
+  pages.forEach((page) => newPdfDoc.addPage(page));
 
   const pdfBytes = await newPdfDoc.save();
   return pdfBytes;
-
 };
-
-
 
 // const getDocumentWithFixedPages = async (filePath, searchTerm) => {
 //   const pdfBuffer = fs.readFileSync(filePath);
@@ -360,15 +375,9 @@ const getDocumentWithFixedPages = async (filePath, searchTerm) => {
 //   // Copier la dernière page
 //   await safeCopyPage(pdfDocLib, newPdfDoc, totalPages - 1);
 
-//   const pdfBytes = await newPdfDoc.save(); 
+//   const pdfBytes = await newPdfDoc.save();
 //   return pdfBytes;
 // };
-
-
-
-
-
-
 
 module.exports = {
   getAllDocuments,
@@ -382,5 +391,5 @@ module.exports = {
   searchDocumentsByDateRange,
   getFile,
   // findPagesWithSearchTerm,
-  getDocumentWithFixedPages
+  getDocumentWithFixedPages,
 };
