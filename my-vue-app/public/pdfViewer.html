@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PDF Viewer</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+    }
+    .pdf-container {
+      position: relative;
+      height: 100vh;
+      overflow: hidden;
+    }
+    iframe {
+      width: 100%;
+      height: calc(100% - 50px); /* Leave space for the close button */
+      border: none;
+    }
+    .close-button {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background-color: #007bff;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .close-button:hover {
+      background-color: #0056b3;
+    }
+  </style>
+</head>
+<body>
+  <div class="pdf-container">
+    <iframe id="pdfIframe"></iframe>
+    <button class="close-button" onclick="window.close()">Close</button>
+  </div>
+  <script>
+    // Get the URL parameter for the PDF
+    const urlParams = new URLSearchParams(window.location.search);
+    const pdfUrl = urlParams.get('url');
+    if (pdfUrl) {
+      document.getElementById('pdfIframe').src = pdfUrl;
+    } else {
+      document.body.innerHTML = '<p>No PDF URL provided.</p>';
+    }
+  </script>
+</body>
+</html>
